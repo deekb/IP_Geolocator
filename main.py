@@ -1,93 +1,104 @@
 #!/bin/python3
 import json
-from rich.console import Console
 from rich import print
+from rich.panel import Panel
 from urllib.request import urlopen
+import requests
+import argparse
+import os
 
-GEOLOCATION_API = "http://ip-api.com/json/"
+GEOLOCATION_API_URL = "http://ip-api.com/json/"
+INTERNET_CHECK_URL = "http://www.google.com"
+INTERNET_CHECK_TIMEOUT_SECONDS = 3
+INSTALLED = os.path.dirname(os.path.abspath(
+    __file__)) == os.path.join(os.path.sep, "usr", "bin")
 
-
-def get_host_ip():
-    return urlopen("https://api.ipify.org/").read().decode()
-
-
-def help_menu():
-    return ("Usage: [OPTIONS]... [IP Address(V4/V6)]\n" +
-            "Options:\n" +
-            "\tAll\t\tPrint all data about the address\n" +
-            "\tCity\t\tPrint the city of the address\n" +
-            "\tZIP\t\tPrint the ZIP code of the address\n" +
-            "\tISP\t\tPrint the Internet Service Provider(ISP) of the address\n" +
-            "\tCountry\t\tPrint the country of an address\n" +
-            "\tRegion\t\tPrint the region of an address\n" +
-            "\tTime Zone\tPrint the time zone of an address\n" +
-            "IP Address(V4/V6):\n")
+if INSTALLED:
+    print(Panel.fit("[cyan]Installed"))
 
 
-def app():
+def main():
     while True:
-        query = input("Command (\"?\" for help): ").lower()
-        if query == "?":
-            console = Console(highlight=False)
-            console.print(help_menu())
-            continue
+        query = input("Command: ").lower()
 
-        shown_fields = []
+        shownFields = []
         if "all" not in query:
-            if "city" in query:
-                shown_fields.append(["\tCity: ", "city"])
-                query = query.replace("city", "")
-            if "zip" in query:
-                shown_fields.append(["\tZIP code: ", "zip"])
-                query = query.replace("zip", "")
-            if "isp" in query:
-                shown_fields.append(["\tISP: ", "isp"])
-                query = query.replace("isp", "")
-            if "country" in query:
-                shown_fields.append(["\tCountry: ", "country"])
-                query = query.replace("country", "")
-            if "region" in query:
-                shown_fields.append(["\tRegion: ", "regionName"])
-                query = query.replace("region", "")
-            if "time zone" in query:
-                shown_fields.append(["\tTime Zone: ", "timezone"])
-                query = query.replace("time zone", "")
+            for _ in ["city", "zip", "isp", "country", "region", "timezone"]:
+                if _ in query:
+                    shownFields.append(_)
+                    query = query.replace(_, "")
 
         else:
-            shown_fields = [
-                ["\tCity: ", "city"],
-                ["\tZIP Code: ", "zip"],
-                ["\tISP: ", "isp"],
-                ["\tCountry: ", "country"],
-                ["\tRegion: ", "regionName"],
-                ["\tTime Zone: ", "timezone"]]
+            shownFields = [
+                "city",
+                "zip",
+                "isp",
+                "country",
+                "region",
+                "timezone"]
             query = query.replace("all", "")
 
         query = query.strip()
-        query = "".join([_ for _ in query if _ in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", ":"]])
+        query = "".join([_ for _ in query if _ in [
+            "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", ":"]])
 
         try:
-            response = urlopen(GEOLOCATION_API + query)
+            response = urlopen(GEOLOCATION_API_URL + query)
             data = response.read()
             values = json.loads(data)
-            print(values)
-        except BaseException:
+        except (requests.ConnectionError, requests.Timeout):
             print(
-                f"Retrieving data for IP: {ip} failed, ensure you have a good internet connection")
+                f"Retrieving geodata for: {query} failed, could not connect to host")
             continue
         if values["status"] == "success":
 
-            if shown_fields:
+            if shownFields:
                 print("Geodata for: " + values["query"])
-                for pair in shown_fields:
-                    print(pair[0] + values[pair[1]])
+                for field in shownFields:
+                    print("\t" + field.title() + ": " + values[field])
             else:
                 print("No valid options specified")
         else:
-            print(
-                f"Retrieving data for IP: {query} failed, ensure your IP is valid")
+            print(f"Retrieving data for: {query} failed, invalid IP")
 
 
 if __name__ == "__main__":
-    print("[green bold]Starting App...[/green bold]")
-    app()
+    parser = argparse.ArgumentParser(
+        description='Get data about IP addresses.')
+
+    parser.add_argument('--city', action='store_true',
+                        help='Print the city of the address')
+    parser.add_argument('--zip', action='store_true',
+                        help='Print the ZIP code of the address')
+    parser.add_argument('--isp', action='store_true',
+                        help='Print the Internet Service Provider(ISP) of the address')
+    parser.add_argument('--country', action='store_true',
+                        help='Print the country of the address')
+    parser.add_argument('--region', action='store_true',
+                        help='Print the region of the address')
+    parser.add_argument('--timezone', action='store_true',
+                        help='Print the time zone of the address')
+    parser.add_argument('--install', action='store_true',
+                        help='install this script to your /usr/bin directory (Unix only)')
+    parser.add_argument('IP', type=str, nargs='?',
+                        help='An IP address (V4/V6)')
+    args = parser.parse_args()
+
+    print("City: ", args.city)
+    if args.install:
+        print(Panel.fit("[green bold]Installing"))
+        print(
+            f"copy \"{os.path.abspath(__file__)}\" to /usr/bin/{os.path.splitext(os.path.basename(__file__))[0]}")
+    try:
+        request = requests.get(
+            INTERNET_CHECK_URL,
+            timeout=INTERNET_CHECK_TIMEOUT_SECONDS)
+        print(Panel.fit("[green bold]Starting App..."))
+    except (requests.ConnectionError, requests.Timeout) as exception:
+        print(Panel.fit("[red bold]No internet connection."))
+        quit()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print()
+        print(Panel.fit("[red bold]Goodbye"))
