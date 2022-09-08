@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=My Test
+Comment=A test application made with nuitka
+Exec=AppRun
+Icon=icon
+Terminal=false
+Categories=
+X-AppImage-Version=1
+Name[en_US]=My Test
+
